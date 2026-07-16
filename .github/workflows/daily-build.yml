@@ -95,7 +95,11 @@ jobs:
                   }
                 },
                 "oauth_client": [],
-                "api_key": [],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyDummyKeyForBuildOnly1234567890"
+                  }
+                ],
                 "services": {}
               }
             ],
