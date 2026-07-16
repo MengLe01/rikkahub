@@ -26,10 +26,6 @@ android {
         versionName = "2.4.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
     }
 
     splits {
