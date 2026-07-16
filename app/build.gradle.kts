@@ -81,6 +81,10 @@ android {
             )
             buildConfigField("String", "VERSION_NAME", "\"${android.defaultConfig.versionName}\"")
             buildConfigField("String", "VERSION_CODE", "\"${android.defaultConfig.versionCode}\"")
+            // 禁用 Crashlytics mapping 文件上传（无真实 Firebase 配置时需要）
+            firebaseCrashlytics {
+                mappingFileUploadEnabled = false
+            }
         }
         debug {
             applicationIdSuffix = ".debug"
