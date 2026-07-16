@@ -234,7 +234,7 @@ fun ChatDrawerContent(
                 }
             }
 
-            DrawerActions(navController = navController)
+            // DrawerActions(navController = navController)
 
             FolderBar(
                 folders = folders,
@@ -328,6 +328,18 @@ fun ChatDrawerContent(
                     },
                 )
 
+                DrawerAction(
+                    icon = {
+                        Icon(HugeIcons.Search01, stringResource(R.string.chat_page_search_chats))
+                    },
+                    label = {
+                        Text(stringResource(R.string.chat_page_search_chats))
+                    },
+                    onClick = {
+                        navController.navigate(Screen.MessageSearch)
+                    },
+                )
+
                 Box {
                     DrawerAction(
                         icon = {
@@ -360,20 +372,16 @@ fun ChatDrawerContent(
                                 navController.navigate(Screen.ImageGen)
                             }
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.favorite_page_title)) },
+                            leadingIcon = { Icon(HugeIcons.InLove, null) },
+                            onClick = {
+                                showMenuPopup = false
+                                navController.navigate(Screen.Favorite)
+                            }
+                        )
                     }
                 }
-
-                DrawerAction(
-                    icon = {
-                        Icon(HugeIcons.InLove, stringResource(R.string.favorite_page_title))
-                    },
-                    label = {
-                        Text(stringResource(R.string.favorite_page_title))
-                    },
-                    onClick = {
-                        navController.navigate(Screen.Favorite)
-                    },
-                )
 
                 DrawerAction(
                     icon = {
