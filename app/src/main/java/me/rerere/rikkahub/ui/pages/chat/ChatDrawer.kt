@@ -467,8 +467,7 @@ fun ChatDrawerContent(
                 showMoveToFolderSheet = false
                 conversationToMoveFolder = null
             },
-            sheetState = folderSheetState,
-            skipPartiallyExpanded = true
+            sheetState = folderSheetState
         ) {
             Column(
                 modifier = Modifier
@@ -643,8 +642,7 @@ fun ChatDrawerContent(
                 showMoveToAssistantSheet = false
                 conversationToMove = null
             },
-            sheetState = bottomSheetState,
-            skipPartiallyExpanded = true
+            sheetState = bottomSheetState
         ) {
             Column(
                 modifier = Modifier
