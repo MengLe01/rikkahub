@@ -19,7 +19,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "me.rerere.rikkahub"
+        applicationId = "me.rerere.airhub"
         minSdk = 26
         targetSdk = 37
         versionCode = 170
