@@ -76,37 +76,6 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      - name: Prepare build files
-        run: |
-          # 创建一个最小化的 google-services.json（Firebase 不是必需的）
-          cat > app/google-services.json << 'EOF'
-          {
-            "project_info": {
-              "project_number": "0",
-              "project_id": "dummy",
-              "storage_bucket": "dummy"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:0:android:0",
-                  "android_client_info": {
-                    "package_name": "me.rerere.rikkahub"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyDummyKeyForBuildOnly1234567890"
-                  }
-                ],
-                "services": {}
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
-
       - name: Gradle Build
         run: |
           chmod +x gradlew
