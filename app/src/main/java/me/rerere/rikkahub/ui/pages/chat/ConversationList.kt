@@ -47,13 +47,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.itemKey
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.ui.theme.extendColors
-import me.rerere.rikkahub.utils.toLocalString
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlin.uuid.Uuid
 
 /**
@@ -61,7 +57,7 @@ import kotlin.uuid.Uuid
  */
 sealed class ConversationListItem {
     data class DateHeader(
-        val date: LocalDate,
+        val key: String,
         val label: String
     ) : ConversationListItem()
     data object PinnedHeader : ConversationListItem()
@@ -108,47 +104,45 @@ fun ColumnScope.ConversationList(
             }
         }
 
-        items(
-            count = conversations.itemCount,
-            key = conversations.itemKey { item ->
-                when (item) {
-                    is ConversationListItem.DateHeader -> "date_${item.date}"
-                    is ConversationListItem.PinnedHeader -> "pinned_header"
-                    is ConversationListItem.Item -> item.conversation.id.toString()
-                }
-            }
-        ) { index ->
-            when (val item = conversations[index]) {
+        for (index in 0 until conversations.itemCount) {
+            when (val snapshotItem = conversations.peek(index)) {
                 is ConversationListItem.DateHeader -> {
-                    DateHeaderItem(
-                        label = item.label,
-                        modifier = Modifier.animateItem()
-                    )
+                    stickyHeader(key = "date_${snapshotItem.key}") {
+                        val header = conversations[index] as? ConversationListItem.DateHeader ?: snapshotItem
+                        DateHeaderItem(label = header.label)
+                    }
                 }
 
                 is ConversationListItem.PinnedHeader -> {
-                    PinnedHeader(
-                        modifier = Modifier.animateItem()
-                    )
+                    stickyHeader(key = "pinned_header") {
+                        conversations[index]
+                        PinnedHeader()
+                    }
                 }
 
                 is ConversationListItem.Item -> {
-                    ConversationItem(
-                        conversation = item.conversation,
-                        selected = item.conversation.id == current.id,
-                        loading = item.conversation.id in conversationJobs,
-                        onClick = onClick,
-                        onDelete = onDelete,
-                        onRegenerateTitle = onRegenerateTitle,
-                        onPin = onPin,
-                        onMoveToAssistant = onMoveToAssistant,
-                        onMoveToFolder = onMoveToFolder,
-                        modifier = Modifier.animateItem()
-                    )
+                    item(key = snapshotItem.conversation.id.toString()) {
+                        val conversationItem =
+                            conversations[index] as? ConversationListItem.Item ?: return@item
+                        ConversationItem(
+                            conversation = conversationItem.conversation,
+                            selected = conversationItem.conversation.id == current.id,
+                            loading = conversationItem.conversation.id in conversationJobs,
+                            onClick = onClick,
+                            onDelete = onDelete,
+                            onRegenerateTitle = onRegenerateTitle,
+                            onPin = onPin,
+                            onMoveToAssistant = onMoveToAssistant,
+                            onMoveToFolder = onMoveToFolder,
+                            modifier = Modifier.animateItem()
+                        )
+                    }
                 }
 
                 null -> {
-                    // Placeholder for loading state
+                    item(key = "placeholder_$index") {
+                        conversations[index]
+                    }
                 }
             }
         }

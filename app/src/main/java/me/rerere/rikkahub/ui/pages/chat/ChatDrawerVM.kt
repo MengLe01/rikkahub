@@ -27,10 +27,15 @@ import me.rerere.rikkahub.data.model.Folder
 import me.rerere.rikkahub.data.repository.ConversationRepository
 import me.rerere.rikkahub.data.repository.FolderRepository
 import me.rerere.rikkahub.service.ChatService
-import me.rerere.rikkahub.utils.toLocalString
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import kotlin.uuid.Uuid
+
+private data class DateGroup(
+    val key: String,
+    val label: String
+)
 
 class ChatDrawerVM(
     private val context: Application,
@@ -66,6 +71,7 @@ class ChatDrawerVM(
                 }
             }
             .map { pagingData ->
+                val today = LocalDate.now()
                 pagingData
                     .map { ConversationListItem.Item(it) }
                     .insertSeparators<ConversationListItem.Item, ConversationListItem> { before, after ->
@@ -74,43 +80,26 @@ class ChatDrawerVM(
                                 if (after.conversation.isPinned) {
                                     ConversationListItem.PinnedHeader
                                 } else {
-                                    val afterDate = after.conversation.updateAt
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDate()
-                                    ConversationListItem.DateHeader(
-                                        date = afterDate,
-                                        label = getDateLabel(afterDate)
-                                    )
+                                    getDateGroup(after, today).toHeader()
                                 }
                             }
 
                             before is ConversationListItem.Item && after is ConversationListItem.Item -> {
-                                if (before.conversation.isPinned && !after.conversation.isPinned) {
-                                    val afterDate = after.conversation.updateAt
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDate()
-                                    ConversationListItem.DateHeader(
-                                        date = afterDate,
-                                        label = getDateLabel(afterDate)
-                                    )
-                                } else if (!after.conversation.isPinned) {
-                                    val beforeDate = before.conversation.updateAt
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDate()
-                                    val afterDate = after.conversation.updateAt
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDate()
+                                if (after.conversation.isPinned) {
+                                    null
+                                } else {
+                                    val afterGroup = getDateGroup(after, today)
+                                    val beforeGroup = if (before.conversation.isPinned) {
+                                        null
+                                    } else {
+                                        getDateGroup(before, today)
+                                    }
 
-                                    if (beforeDate != afterDate) {
-                                        ConversationListItem.DateHeader(
-                                            date = afterDate,
-                                            label = getDateLabel(afterDate)
-                                        )
+                                    if (beforeGroup?.key != afterGroup.key) {
+                                        afterGroup.toHeader()
                                     } else {
                                         null
                                     }
-                                } else {
-                                    null
                                 }
                             }
 
@@ -183,13 +172,46 @@ class ChatDrawerVM(
         }
     }
 
-    private fun getDateLabel(date: LocalDate): String {
-        val today = LocalDate.now()
-        val yesterday = today.minusDays(1)
-        return when (date) {
-            today -> context.getString(R.string.chat_page_today)
-            yesterday -> context.getString(R.string.chat_page_yesterday)
-            else -> date.toLocalString(date.year != today.year)
+    private fun getDateGroup(item: ConversationListItem.Item, today: LocalDate): DateGroup {
+        val date = item.conversation.updateAt
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+        val daysAgo = ChronoUnit.DAYS.between(date, today)
+
+        return when {
+            daysAgo <= 0 -> DateGroup(
+                key = "today",
+                label = context.getString(R.string.chat_page_today)
+            )
+
+            daysAgo == 1L -> DateGroup(
+                key = "yesterday",
+                label = context.getString(R.string.chat_page_yesterday)
+            )
+
+            daysAgo < 7 -> DateGroup(
+                key = "within_7_days",
+                label = context.getString(R.string.chat_page_within_7_days)
+            )
+
+            daysAgo < 30 -> DateGroup(
+                key = "within_30_days",
+                label = context.getString(R.string.chat_page_within_30_days)
+            )
+
+            else -> DateGroup(
+                key = "month_${date.year}_${date.monthValue}",
+                label = context.getString(
+                    R.string.chat_page_month_group,
+                    date.year,
+                    date.monthValue
+                )
+            )
         }
     }
+
+    private fun DateGroup.toHeader() = ConversationListItem.DateHeader(
+        key = key,
+        label = label
+    )
 }

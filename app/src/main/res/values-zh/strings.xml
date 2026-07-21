@@ -293,6 +293,7 @@
   <string name="chat_page_history">聊天历史</string>
   <string name="chat_page_menu_ai_translator">AI翻译</string>
   <string name="chat_page_menu_image_generation">图像生成</string>
+  <string name="chat_page_month_group">%1$d年%2$d月</string>
   <string name="chat_page_message_count">%d 条消息</string>
   <string name="chat_page_move_to_assistant">移动到助手</string>
   <string name="chat_page_new_chat">新聊天</string>
@@ -304,6 +305,8 @@
   <string name="chat_page_scroll_to_bottom">滚动到底部</string>
   <string name="chat_page_search_chats">搜索聊天</string>
   <string name="chat_page_today">今天</string>
+  <string name="chat_page_within_30_days">30天内</string>
+  <string name="chat_page_within_7_days">7天内</string>
   <string name="chat_page_yesterday">昨天</string>
   <string name="chat_size_dialog_content">当前消息数：%1$d。这可能导致应用崩溃或卡顿，甚至丢失本次对话数据。请尽快新建对话以继续聊天。</string>
   <string name="chat_size_dialog_title">此对话数据过大</string>
