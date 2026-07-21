@@ -597,6 +597,13 @@ private fun ModelSettingsForm(
                             }
                         )
 
+                        ModelVisibilitySwitch(
+                            isHidden = model.isHidden,
+                            onHiddenChange = {
+                                onModelChange(model.copy(isHidden = it))
+                            }
+                        )
+
                         ModelTypeSelector(
                             selectedType = model.type,
                             onTypeSelected = {
@@ -1045,6 +1052,27 @@ private fun ModelTypeSelector(
 }
 
 @Composable
+private fun ModelVisibilitySwitch(
+    isHidden: Boolean,
+    onHiddenChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.setting_provider_page_is_hidden),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Switch(
+            checked = isHidden,
+            onCheckedChange = onHiddenChange,
+        )
+    }
+}
+
+@Composable
 private fun ModelModalitySelector(
     model: Model,
     inputModalities: List<Modality>,
@@ -1308,12 +1336,22 @@ private fun ModelCard(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(
-                        text = model.displayName,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = model.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (model.isHidden) {
+                            Tag(type = TagType.WARNING) {
+                                Text(stringResource(R.string.setting_provider_page_hidden))
+                            }
+                        }
+                    }
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
