@@ -305,6 +305,16 @@ class ConversationRepository(
         messageFtsManager.indexConversation(conversation)
     }
 
+    /**
+     * 仅更新会话的 update_at 时间戳并落库。
+     *
+     * 用于在生成开始时轻量刷新排序时间，避免整对象写库（saveConversation）的开销；
+     * Room 的 PagingSource 会因表变更自动 invalidate，侧边栏列表排序即时刷新。
+     */
+    suspend fun updateConversationTimestamp(conversationId: Uuid, updateAt: Instant) {
+        conversationDAO.updateTimestamp(conversationId.toString(), updateAt.toEpochMilli())
+    }
+
     suspend fun deleteConversation(conversation: Conversation) {
         // 获取完整的 Conversation（包含 messageNodes）以正确清理文件
         val fullConversation = if (conversation.messageNodes.isEmpty()) {

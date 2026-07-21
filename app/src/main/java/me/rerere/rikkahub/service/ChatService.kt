@@ -318,6 +318,7 @@ class ChatService(
 
                 // 添加消息到列表
                 val newConversation = currentConversation.copy(
+                    updateAt = Instant.now(),
                     messageNodes = currentConversation.messageNodes + UIMessage(
                         role = MessageRole.USER,
                         parts = processedContent,
@@ -499,6 +500,12 @@ class ChatService(
             // check invalid messages
             checkInvalidMessages(conversationId)
             val conversation = getConversationFlow(conversationId).value
+
+            // 生成开始时立即更新 updateAt 并落库，使侧边栏排序即时刷新；
+            // 即便后续被用户取消导致未走 saveConversation，开始时间也已写入数据库
+            val generationStartTime = Instant.now()
+            updateConversation(conversationId, conversation.copy(updateAt = generationStartTime))
+            conversationRepo.updateConversationTimestamp(conversationId, generationStartTime)
 
             // start generating
             val session = getOrCreateSession(conversationId)
