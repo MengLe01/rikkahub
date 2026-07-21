@@ -47,31 +47,35 @@ android {
 
             if (localPropertiesFile.exists()) {
                 localProperties.load(FileInputStream(localPropertiesFile))
+            }
 
-                val storeFilePath = localProperties.getProperty("storeFile")
-                val storePasswordValue = localProperties.getProperty("storePassword")
-                val keyAliasValue = localProperties.getProperty("keyAlias")
-                val keyPasswordValue = localProperties.getProperty("keyPassword")
+            val storeFilePath = localProperties.getProperty("storeFile")
+                ?: System.getenv("ANDROID_KEYSTORE_PATH")
+            val storePasswordValue = localProperties.getProperty("storePassword")
+                ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val keyAliasValue = localProperties.getProperty("keyAlias")
+                ?: System.getenv("ANDROID_KEY_ALIAS")
+            val keyPasswordValue = localProperties.getProperty("keyPassword")
+                ?: System.getenv("ANDROID_KEY_PASSWORD")
 
-                if (storeFilePath != null && storePasswordValue != null &&
-                    keyAliasValue != null && keyPasswordValue != null
-                ) {
-                    storeFile = file(storeFilePath)
-                    storePassword = storePasswordValue
-                    keyAlias = keyAliasValue
-                    keyPassword = keyPasswordValue
-                }
+            if (storeFilePath != null && storePasswordValue != null &&
+                keyAliasValue != null && keyPasswordValue != null
+            ) {
+                storeFile = file(storeFilePath)
+                storePassword = storePasswordValue
+                keyAlias = keyAliasValue
+                keyPassword = keyPasswordValue
             }
         }
     }
 
     buildTypes {
         release {
-            // 优先使用 release 签名，如果没有配置则使用 debug 签名
-            signingConfig = if (signingConfigs.getByName("release").storeFile != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            // Release 构建必须使用固定签名，避免 CI 临时 debug keystore 导致后续无法覆盖安装
+            signingConfig = signingConfigs.getByName("release").also {
+                require(it.storeFile != null) {
+                    "Release signing is not configured. Set signing values in local.properties or ANDROID_KEYSTORE_* environment variables."
+                }
             }
             isMinifyEnabled = true
             isShrinkResources = true
