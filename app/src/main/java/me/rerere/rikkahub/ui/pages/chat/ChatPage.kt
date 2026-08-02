@@ -413,6 +413,7 @@ private fun ChatPageContent(
                 innerPadding = innerPadding,
                 conversation = conversation,
                 state = chatListState,
+                isEditing = inputState.isEditing(),
                 loading = loadingJob != null,
                 processingStatus = processingStatus,
                 previewMode = previewMode,

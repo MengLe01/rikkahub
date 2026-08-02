@@ -1,36 +1,58 @@
 package me.rerere.rikkahub.ui.hooks
 
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalDensity
 
 @Composable
 fun ImeLazyListAutoScroller(
     lazyListState: LazyListState,
+    enabled: Boolean,
+    isNearEnd: Boolean,
 ) {
     val ime = WindowInsets.ime
-    val localDensity = LocalDensity.current
-    var imeHeigh by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
+    val density = LocalDensity.current
+    val currentEnabled by rememberUpdatedState(enabled)
+    val currentIsNearEnd by rememberUpdatedState(isNearEnd)
+
+    LaunchedEffect(lazyListState, density) {
+        var previousImeHeight = 0
+        var wasNearEndBeforeIme = currentIsNearEnd
+        var followEndForCurrentImeSession = false
+
         snapshotFlow {
-            ime.getBottom(localDensity)
-        }.collect { keyboardHeight ->
-            if (keyboardHeight > 0) {
-                if (imeHeigh < keyboardHeight) {
-                    lazyListState.scrollBy((keyboardHeight - imeHeigh).toFloat())
-                } else {
-                    lazyListState.scrollBy((keyboardHeight - imeHeigh).toFloat())
+            Triple(
+                ime.getBottom(density),
+                currentEnabled,
+                currentIsNearEnd,
+            )
+        }.collect { (imeHeight, enabledNow, isNearEndNow) ->
+            if (imeHeight == 0) {
+                previousImeHeight = 0
+                wasNearEndBeforeIme = isNearEndNow
+                followEndForCurrentImeSession = false
+                return@collect
+            }
+
+            if (previousImeHeight == 0) {
+                followEndForCurrentImeSession = enabledNow && wasNearEndBeforeIme
+            }
+            if (!enabledNow) {
+                followEndForCurrentImeSession = false
+            }
+            previousImeHeight = imeHeight
+
+            if (followEndForCurrentImeSession) {
+                val lastItemIndex = lazyListState.layoutInfo.totalItemsCount - 1
+                if (lastItemIndex >= 0) {
+                    lazyListState.requestScrollToItem(lastItemIndex)
                 }
-                imeHeigh = keyboardHeight
             }
         }
     }

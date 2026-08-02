@@ -54,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -108,12 +109,14 @@ import kotlin.uuid.Uuid
 private const val TAG = "ChatList"
 private const val LoadingIndicatorKey = "LoadingIndicator"
 private const val ScrollBottomKey = "ScrollBottomKey"
+private val NearConversationEndThreshold = 96.dp
 
 @Composable
 fun ChatList(
     innerPadding: PaddingValues,
     conversation: Conversation,
     state: LazyListState,
+    isEditing: Boolean,
     loading: Boolean,
     processingStatus: String? = null,
     previewMode: Boolean,
@@ -157,6 +160,7 @@ fun ChatList(
                 innerPadding = innerPadding,
                 conversation = conversation,
                 state = state,
+                isEditing = isEditing,
                 loading = loading,
                 processingStatus = processingStatus,
                 settings = settings,
@@ -187,6 +191,7 @@ private fun ChatListNormal(
     innerPadding: PaddingValues,
     conversation: Conversation,
     state: LazyListState,
+    isEditing: Boolean,
     loading: Boolean,
     processingStatus: String? = null,
     settings: Settings,
@@ -233,13 +238,22 @@ private fun ChatListNormal(
         }
     }
 
-    fun List<LazyListItemInfo>.isAtBottom(): Boolean {
-        val lastItem = lastOrNull() ?: return false
-        val inputBarHeight = with(density) { innerPadding.calculateBottomPadding().toPx() }
-        val lastPos = lastItem.offset + lastItem.size
-        val inputPos = (state.layoutInfo.viewportEndOffset - inputBarHeight.roundToInt())
-        // println("lastPos = $lastPos, inputPos = $inputPos  | ${lastPos <= inputPos - 8}")
-        return lastPos <= inputPos - 8
+    val latestLastMessageId by rememberUpdatedState(conversation.messageNodes.lastOrNull()?.id)
+    val latestBottomPadding by rememberUpdatedState(innerPadding.calculateBottomPadding())
+    val nearEndThresholdPx = with(density) { NearConversationEndThreshold.roundToPx() }
+
+    fun List<LazyListItemInfo>.isNearConversationEnd(): Boolean {
+        val lastMessageId = latestLastMessageId ?: return false
+        val lastMessage = firstOrNull { it.key == lastMessageId } ?: return false
+        val inputBarHeight = with(density) { latestBottomPadding.toPx() }.roundToInt()
+        val visibleContentBottom = state.layoutInfo.viewportEndOffset - inputBarHeight
+        return lastMessage.offset + lastMessage.size <= visibleContentBottom + nearEndThresholdPx
+    }
+
+    val isNearConversationEnd by remember(state, nearEndThresholdPx) {
+        derivedStateOf {
+            state.layoutInfo.visibleItemsInfo.isNearConversationEnd()
+        }
     }
 
     // 聊天选择
@@ -248,7 +262,11 @@ private fun ChatListNormal(
     var showExportSheet by remember { mutableStateOf(false) }
 
     // 自动跟随键盘滚动
-    ImeLazyListAutoScroller(lazyListState = state)
+    ImeLazyListAutoScroller(
+        lazyListState = state,
+        enabled = !isEditing,
+        isNearEnd = isNearConversationEnd,
+    )
 
     // 对话大小警告对话框
     val sizeInfo = rememberConversationSizeInfo(conversation)
@@ -280,7 +298,7 @@ private fun ChatListNormal(
                 snapshotFlow { state.layoutInfo.visibleItemsInfo }.collect { visibleItemsInfo ->
                     // println("is bottom = ${visibleItemsInfo.isAtBottom()}, scroll = ${state.isScrollInProgress}, can_scroll = ${state.canScrollForward}, loading = $loading")
                     if (!state.isScrollInProgress && loadingState) {
-                        if (visibleItemsInfo.isAtBottom()) {
+                        if (visibleItemsInfo.isNearConversationEnd()) {
                             state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
                             // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
                         }
