@@ -224,7 +224,7 @@ private fun ChatListNormal(
         val listener: (Boolean) -> Boolean = { isVolumeUp ->
             if (settings.displaySetting.enableVolumeKeyScroll) {
                 val bottomPaddingPx = with(density) {
-                    (32.dp + innerPadding.calculateBottomPadding()).toPx()
+                    (8.dp + innerPadding.calculateBottomPadding()).toPx()
                 }
                 val scrollAmount = (state.layoutInfo.viewportSize.height - bottomPaddingPx) *
                     settings.displaySetting.volumeKeyScrollRatio
@@ -322,7 +322,12 @@ private fun ChatListNormal(
         ChatFontProvider(displaySetting = settings.displaySetting) {
             LazyColumn(
                 state = state,
-                contentPadding = PaddingValues(16.dp) + PaddingValues(bottom = 32.dp + innerPadding.calculateBottomPadding()),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    top = 16.dp,
+                    end = 16.dp,
+                    bottom = innerPadding.calculateBottomPadding() + 8.dp,
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
@@ -424,7 +429,7 @@ private fun ChatListNormal(
                 Spacer(
                     Modifier
                         .fillMaxWidth()
-                        .height(5.dp)
+                        .height(1.dp)
                 )
             }
             }
@@ -671,7 +676,12 @@ private fun ChatListPreview(
 
         // 消息预览
         LazyColumn(
-            contentPadding = PaddingValues(16.dp) + PaddingValues(bottom = 32.dp + innerPadding.calculateBottomPadding()),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 16.dp,
+                end = 16.dp,
+                bottom = innerPadding.calculateBottomPadding() + 8.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxWidth()
