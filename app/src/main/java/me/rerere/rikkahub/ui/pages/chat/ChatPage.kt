@@ -32,6 +32,7 @@ import androidx.compose.material3.adaptive.currentWindowDpSize
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,11 +43,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
@@ -117,6 +122,27 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val dismissInput: () -> Unit = remember(focusManager, softwareKeyboardController) {
+        {
+            focusManager.clearFocus(force = true)
+            softwareKeyboardController?.hide()
+            Unit
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, dismissInput) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                dismissInput()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     // Handle back press when drawer is open
     BackHandler(enabled = drawerState.isOpen) {
@@ -125,10 +151,10 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
         }
     }
 
-    // Hide keyboard when drawer is open
+    // Clear input focus when the drawer covers the chat page.
     LaunchedEffect(drawerState.isOpen) {
         if (drawerState.isOpen) {
-            softwareKeyboardController?.hide()
+            dismissInput()
         }
     }
 
@@ -217,6 +243,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     errors = errors,
                     onDismissError = { vm.dismissError(it) },
                     onClearAllErrors = { vm.clearAllErrors() },
+                    onDismissInput = dismissInput,
                 )
             }
         }
@@ -249,6 +276,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     errors = errors,
                     onDismissError = { vm.dismissError(it) },
                     onClearAllErrors = { vm.clearAllErrors() },
+                    onDismissInput = dismissInput,
                 )
             }
             BackHandler(drawerState.isOpen) {
@@ -275,6 +303,7 @@ private fun ChatPageContent(
     errors: List<ChatError>,
     onDismissError: (Uuid) -> Unit,
     onClearAllErrors: () -> Unit,
+    onDismissInput: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val toaster = LocalToaster.current
@@ -422,6 +451,7 @@ private fun ChatPageContent(
                 errors = errors,
                 onDismissError = onDismissError,
                 onClearAllErrors = onClearAllErrors,
+                onDismissInput = onDismissInput,
                 onRegenerate = {
                     vm.regenerateAtMessage(it)
                 },

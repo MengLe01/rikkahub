@@ -23,6 +23,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -68,6 +71,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.graphics.Color
@@ -117,6 +122,7 @@ fun ChatList(
     conversation: Conversation,
     state: LazyListState,
     isEditing: Boolean,
+    onDismissInput: () -> Unit,
     loading: Boolean,
     processingStatus: String? = null,
     previewMode: Boolean,
@@ -139,7 +145,39 @@ fun ChatList(
     onToggleFavorite: ((MessageNode) -> Unit)? = null,
     onConversationSystemPromptChange: ((String?) -> Unit)? = null,
 ) {
+    val currentOnDismissInput by rememberUpdatedState(onDismissInput)
+    val isListDragged by state.interactionSource.collectIsDraggedAsState()
+
+    LaunchedEffect(isListDragged) {
+        if (isListDragged) {
+            currentOnDismissInput()
+        }
+    }
+
     AnimatedContent(
+        modifier = Modifier.pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown(pass = PointerEventPass.Initial)
+                val downPosition = down.position
+                val downTime = down.uptimeMillis
+                var isTap = true
+                var change = down
+
+                do {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if ((change.position - downPosition).getDistance() > viewConfiguration.touchSlop ||
+                        change.uptimeMillis - downTime >= viewConfiguration.longPressTimeoutMillis
+                    ) {
+                        isTap = false
+                    }
+                } while (change.pressed)
+
+                if (isTap) {
+                    currentOnDismissInput()
+                }
+            }
+        },
         targetState = previewMode,
         label = "ChatListMode",
         transitionSpec = {
@@ -161,6 +199,7 @@ fun ChatList(
                 conversation = conversation,
                 state = state,
                 isEditing = isEditing,
+                isListDragged = isListDragged,
                 loading = loading,
                 processingStatus = processingStatus,
                 settings = settings,
@@ -192,6 +231,7 @@ private fun ChatListNormal(
     conversation: Conversation,
     state: LazyListState,
     isEditing: Boolean,
+    isListDragged: Boolean,
     loading: Boolean,
     processingStatus: String? = null,
     settings: Settings,
@@ -264,7 +304,7 @@ private fun ChatListNormal(
     // 自动跟随键盘滚动
     ImeLazyListAutoScroller(
         lazyListState = state,
-        enabled = !isEditing,
+        enabled = !isEditing && !isListDragged,
         isNearEnd = isNearConversationEnd,
     )
 
