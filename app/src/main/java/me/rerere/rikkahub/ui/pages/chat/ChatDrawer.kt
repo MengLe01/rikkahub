@@ -95,6 +95,8 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import kotlin.uuid.Uuid
 
+internal val ChatDrawerWidth = 300.dp
+
 @Composable
 fun ChatDrawerContent(
     navController: Navigator,
@@ -176,7 +178,7 @@ fun ChatDrawerContent(
     var showMenuPopup by remember { mutableStateOf(false) }
 
     ModalDrawerSheet(
-        modifier = Modifier.width(300.dp)
+        modifier = Modifier.width(ChatDrawerWidth)
     ) {
         Column(
             modifier = Modifier.padding(8.dp),
