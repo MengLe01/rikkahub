@@ -132,6 +132,12 @@ fun ChatDrawerContent(
             }
     }
 
+    LaunchedEffect(conversationListState, drawerVm) {
+        drawerVm.scrollToTop.collect {
+            conversationListState.scrollToItem(0)
+        }
+    }
+
     val conversationJobs by vm.conversationJobs.collectAsStateWithLifecycle(
         initialValue = emptyMap(),
     )
