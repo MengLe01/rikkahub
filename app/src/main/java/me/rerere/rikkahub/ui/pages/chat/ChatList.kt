@@ -68,6 +68,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,6 +93,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
@@ -121,6 +123,10 @@ fun ChatList(
     innerPadding: PaddingValues,
     conversation: Conversation,
     state: LazyListState,
+    conversationInitialized: Boolean,
+    initialPositioned: Boolean,
+    initialNodeId: Uuid?,
+    onInitialPositioned: () -> Unit,
     isEditing: Boolean,
     onDismissInput: () -> Unit,
     loading: Boolean,
@@ -146,7 +152,55 @@ fun ChatList(
     onConversationSystemPromptChange: ((String?) -> Unit)? = null,
 ) {
     val currentOnDismissInput by rememberUpdatedState(onDismissInput)
+    val currentOnInitialPositioned by rememberUpdatedState(onInitialPositioned)
     val isListDragged by state.interactionSource.collectIsDraggedAsState()
+    var userScrollEnabled by remember(conversation.id) {
+        mutableStateOf(initialPositioned)
+    }
+
+    LaunchedEffect(
+        conversation.id,
+        conversationInitialized,
+        initialPositioned,
+        initialNodeId,
+        previewMode,
+    ) {
+        if (initialPositioned) {
+            userScrollEnabled = true
+            return@LaunchedEffect
+        }
+        if (!conversationInitialized || previewMode) {
+            userScrollEnabled = false
+            return@LaunchedEffect
+        }
+
+        userScrollEnabled = false
+        withFrameNanos { }
+        snapshotFlow {
+            state.layoutInfo.totalItemsCount to state.layoutInfo.viewportSize.height
+        }.first { (itemCount, viewportHeight) ->
+            itemCount > 0 && viewportHeight > 0
+        }
+
+        val nodeIndex = initialNodeId?.let { targetId ->
+            conversation.messageNodes.indexOfFirst { it.id == targetId }
+        } ?: -1
+        if (nodeIndex >= 0) {
+            state.scrollToItem(nodeIndex)
+            withFrameNanos { }
+        } else {
+            repeat(2) {
+                val lastItemIndex = state.layoutInfo.totalItemsCount - 1
+                if (lastItemIndex >= 0) {
+                    state.scrollToItem(lastItemIndex)
+                }
+                withFrameNanos { }
+            }
+        }
+
+        userScrollEnabled = true
+        currentOnInitialPositioned()
+    }
 
     LaunchedEffect(isListDragged) {
         if (isListDragged) {
@@ -200,6 +254,7 @@ fun ChatList(
                 state = state,
                 isEditing = isEditing,
                 isListDragged = isListDragged,
+                userScrollEnabled = userScrollEnabled,
                 loading = loading,
                 processingStatus = processingStatus,
                 settings = settings,
@@ -232,6 +287,7 @@ private fun ChatListNormal(
     state: LazyListState,
     isEditing: Boolean,
     isListDragged: Boolean,
+    userScrollEnabled: Boolean,
     loading: Boolean,
     processingStatus: String? = null,
     settings: Settings,
@@ -362,6 +418,7 @@ private fun ChatListNormal(
         ChatFontProvider(displaySetting = settings.displaySetting) {
             LazyColumn(
                 state = state,
+                userScrollEnabled = userScrollEnabled,
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     top = 16.dp,

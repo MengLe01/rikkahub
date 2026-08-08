@@ -197,19 +197,6 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     }
 
     val chatListState = rememberLazyListState()
-    LaunchedEffect(nodeId, conversation.messageNodes.size) {
-        if (!vm.chatListInitialized && conversation.messageNodes.isNotEmpty()) {
-            if (nodeId != null) {
-                val index = conversation.messageNodes.indexOfFirst { it.id == nodeId }
-                if (index >= 0) {
-                    chatListState.scrollToItem(index)
-                }
-            } else {
-                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-            }
-            vm.chatListInitialized = true
-        }
-    }
 
     when {
         isBigScreen -> {
@@ -233,6 +220,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     navController = navController,
                     vm = vm,
                     chatListState = chatListState,
+                    initialNodeId = nodeId,
                     enableWebSearch = enableWebSearch,
                     currentChatModel = currentChatModel,
                     bigScreen = true,
@@ -266,6 +254,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     navController = navController,
                     vm = vm,
                     chatListState = chatListState,
+                    initialNodeId = nodeId,
                     enableWebSearch = enableWebSearch,
                     currentChatModel = currentChatModel,
                     bigScreen = false,
@@ -291,6 +280,7 @@ private fun ChatPageContent(
     navController: Navigator,
     vm: ChatVM,
     chatListState: LazyListState,
+    initialNodeId: Uuid?,
     enableWebSearch: Boolean,
     currentChatModel: Model?,
     errors: List<ChatError>,
@@ -435,6 +425,12 @@ private fun ChatPageContent(
                 innerPadding = innerPadding,
                 conversation = conversation,
                 state = chatListState,
+                conversationInitialized = vm.conversationInitialized,
+                initialPositioned = vm.chatListInitialized,
+                initialNodeId = initialNodeId,
+                onInitialPositioned = {
+                    vm.chatListInitialized = true
+                },
                 isEditing = inputState.isEditing(),
                 loading = loadingJob != null,
                 processingStatus = processingStatus,
