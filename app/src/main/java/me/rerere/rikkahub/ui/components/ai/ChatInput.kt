@@ -60,9 +60,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreInterceptKeyBeforeSoftKeyboard
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -134,18 +140,17 @@ fun ChatInput(
     val hazeTintColor = MaterialTheme.colorScheme.surfaceContainerLow
     val inputHazeStyle = HazeMaterials.thin(containerColor = hazeTintColor)
 
-    val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
 
-    fun sendMessage() {
-        focusManager.clearFocus(force = true)
-        keyboardController?.hide()
+    fun sendMessage(dismissFocus: Boolean = true) {
+        if (dismissFocus) {
+            focusManager.clearFocus(force = true)
+        }
         if (loading) onCancelClick() else onSendClick()
     }
 
     fun sendMessageWithoutAnswer() {
         focusManager.clearFocus(force = true)
-        keyboardController?.hide()
         if (loading) onCancelClick() else onLongSendClick()
     }
 
@@ -221,7 +226,7 @@ fun ChatInput(
                     TextInputRow(
                         state = state,
                         completionProviders = completionProviders,
-                        onSendMessage = { sendMessage() }
+                        onSendMessage = { dismissFocus -> sendMessage(dismissFocus) }
                     )
 
                     Row(
@@ -405,7 +410,7 @@ private fun ActionIconButton(
 private fun TextInputRow(
     state: ChatInputState,
     completionProviders: List<ChatCompletionProvider>,
-    onSendMessage: () -> Unit,
+    onSendMessage: (dismissFocus: Boolean) -> Unit,
 ) {
     val settings = LocalSettings.current
     val filesManager: FilesManager = koinInject()
@@ -534,6 +539,30 @@ private fun TextInputRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("chat_input")
+                .onPreInterceptKeyBeforeSoftKeyboard { event ->
+                    val isEnter = event.key == Key.Enter || event.key == Key.NumPadEnter
+                    if (!isEnter) {
+                        return@onPreInterceptKeyBeforeSoftKeyboard false
+                    }
+
+                    if (event.type == KeyEventType.KeyUp) {
+                        val shouldSend = !event.isShiftPressed &&
+                            settings.displaySetting.sendOnEnter != event.isCtrlPressed
+                        if (shouldSend) {
+                            if (!state.isEmpty()) {
+                                onSendMessage(false)
+                            }
+                        } else {
+                            state.textContent.edit {
+                                val start = selection.min
+                                val end = selection.max
+                                replace(start, end, "\n")
+                                selection = TextRange(start + 1)
+                            }
+                        }
+                    }
+                    true
+                }
                 .contentReceiver(receiveContentListener)
                 .onFocusChanged {
                     isFocused = it.isFocused
@@ -548,7 +577,7 @@ private fun TextInputRow(
             ),
             onKeyboardAction = {
                 if (settings.displaySetting.sendOnEnter && !state.isEmpty()) {
-                    onSendMessage()
+                    onSendMessage(true)
                 }
             },
             colors = TextFieldDefaults.colors().copy(

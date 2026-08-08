@@ -198,7 +198,7 @@ function ChatInputInner({
 }: ChatInputProps) {
   const { t } = useTranslation("input");
   const sendOnEnter = useSettingsStore(
-    (state) => state.settings?.displaySetting.sendOnEnter ?? true,
+    (state) => state.settings?.displaySetting.sendOnEnter ?? false,
   );
   const pasteLongTextAsFile = useSettingsStore(
     (state) => state.settings?.displaySetting.pasteLongTextAsFile ?? false,
@@ -383,16 +383,30 @@ function ChatInputInner({
       if (isGenerating) return;
       if (event.nativeEvent.isComposing) return;
 
-      // 镜像逻辑：
-      // sendOnEnter = true: Enter 发送，Shift+Enter 换行
-      // sendOnEnter = false: Shift+Enter 发送，Enter 换行
-      const shouldSend = sendOnEnter ? !event.shiftKey : event.shiftKey;
-      if (!shouldSend) return;
+      // Shift+Enter 始终换行；其余情况由共用的“按 Enter 发送”设置决定。
+      const shouldSend =
+        !event.shiftKey && (sendOnEnter ? !event.ctrlKey : event.ctrlKey);
+      if (shouldSend) {
+        event.preventDefault();
+        void handlePrimaryAction();
+        return;
+      }
 
-      event.preventDefault();
-      void handlePrimaryAction();
+      // 浏览器不会稳定地把 Ctrl+Enter 当作文本框换行，需要显式插入。
+      if (event.ctrlKey) {
+        event.preventDefault();
+        const start = event.currentTarget.selectionStart;
+        const end = event.currentTarget.selectionEnd;
+        onValueChange(value.slice(0, start) + "\n" + value.slice(end));
+        if (error) {
+          setError(null);
+        }
+        requestAnimationFrame(() => {
+          textareaRef.current?.setSelectionRange(start + 1, start + 1);
+        });
+      }
     },
-    [handlePrimaryAction, isGenerating, sendOnEnter],
+    [error, handlePrimaryAction, isGenerating, onValueChange, sendOnEnter, value],
   );
 
   const handleUploadInputChange = React.useCallback(
@@ -487,7 +501,7 @@ function ChatInputInner({
 
   const sendHint = sendOnEnter
     ? t("chat.send_hint_enter")
-    : t("chat.send_hint_newline");
+    : t("chat.send_hint_ctrl_enter");
   const placeholder = ready
     ? t("chat.placeholder_ready")
     : t("chat.placeholder_not_ready");

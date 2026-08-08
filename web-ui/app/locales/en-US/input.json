@@ -107,8 +107,8 @@
     "unsupported_file_skipped": "{{count}} file(s) skipped due to unsupported format",
     "placeholder_ready": "Type a message...",
     "placeholder_not_ready": "Please select a conversation first",
-    "send_hint_enter": "Press Enter to send, Shift + Enter for newline",
-    "send_hint_newline": "Press Shift + Enter to send, Enter for newline",
+    "send_hint_enter": "Press Enter to send, Ctrl + Enter or Shift + Enter for newline",
+    "send_hint_ctrl_enter": "Press Ctrl + Enter to send, Enter or Shift + Enter for newline",
     "long_text_as_file": "Long text converted to file attachment"
   }
 }
