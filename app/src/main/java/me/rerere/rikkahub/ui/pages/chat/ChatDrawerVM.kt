@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -64,23 +65,25 @@ class ChatDrawerVM(
             assistantId to folderId
         }
             .flatMapLatest { (assistantId, folderId) ->
-                if (folderId == null) {
+                val sourceKey = "${assistantId}_${folderId ?: "unfiled"}"
+                val pagingData = if (folderId == null) {
                     conversationRepo.getUnfiledConversationsOfAssistantPaging(assistantId)
                 } else {
                     conversationRepo.getConversationsOfFolderPaging(folderId)
                 }
+                pagingData.map { sourceKey to it }
             }
-            .map { pagingData ->
+            .map { (sourceKey, pagingData) ->
                 val today = LocalDate.now()
                 pagingData
-                    .map { ConversationListItem.Item(it) }
+                    .map { ConversationListItem.Item(sourceKey = sourceKey, conversation = it) }
                     .insertSeparators<ConversationListItem.Item, ConversationListItem> { before, after ->
                         when {
                             before == null && after is ConversationListItem.Item -> {
                                 if (after.conversation.isPinned) {
-                                    ConversationListItem.PinnedHeader
+                                    ConversationListItem.PinnedHeader(sourceKey)
                                 } else {
-                                    getDateGroup(after, today).toHeader()
+                                    getDateGroup(after, today).toHeader(sourceKey)
                                 }
                             }
 
@@ -96,7 +99,7 @@ class ChatDrawerVM(
                                     }
 
                                     if (beforeGroup?.key != afterGroup.key) {
-                                        afterGroup.toHeader()
+                                        afterGroup.toHeader(sourceKey)
                                     } else {
                                         null
                                     }
@@ -116,18 +119,19 @@ class ChatDrawerVM(
         // 助手切换时重置文件夹筛选，回到「聊天」视图，
         // 避免继续显示上一个助手文件夹内的会话（文件夹是助手内分组）
         viewModelScope.launch {
-            assistantIdFlow.collect {
+            assistantIdFlow.drop(1).collect {
                 _selectedFolderId.value = null
             }
         }
     }
 
+    // 列表切换后，忽略旧 LazyListState 迟到发出的滚动位置。
     fun saveScrollPosition(index: Int, offset: Int) {
         savedStateHandle["scrollIndex"] = index
         savedStateHandle["scrollOffset"] = offset
     }
-
     fun selectFolder(folderId: Uuid?) {
+        if (_selectedFolderId.value == folderId) return
         _selectedFolderId.value = folderId
     }
 
@@ -159,7 +163,7 @@ class ChatDrawerVM(
             // 经 ChatService 删除：会同步清空活跃 session 内存态的 folderId，避免整对象保存写回已删文件夹
             chatService.deleteFolder(folderId)
             if (_selectedFolderId.value == folderId) {
-                _selectedFolderId.value = null
+                selectFolder(null)
             }
         }
         return true
@@ -210,8 +214,9 @@ class ChatDrawerVM(
         }
     }
 
-    private fun DateGroup.toHeader() = ConversationListItem.DateHeader(
+    private fun DateGroup.toHeader(sourceKey: String) = ConversationListItem.DateHeader(
+        sourceKey = sourceKey,
         key = key,
-        label = label
+        label = label,
     )
 }

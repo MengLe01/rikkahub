@@ -120,7 +120,6 @@ fun ChatDrawerContent(
         initialFirstVisibleItemIndex = drawerVm.scrollIndex,
         initialFirstVisibleItemScrollOffset = drawerVm.scrollOffset,
     )
-
     LaunchedEffect(conversationListState) {
         snapshotFlow {
             conversationListState.firstVisibleItemIndex to
@@ -138,12 +137,12 @@ fun ChatDrawerContent(
 
     // 当前对话开始生成（有新内容产生）时，将侧边栏滚动到顶部，确保该对话可见。
     // 与点击切换对话时的滚动区分：此处由生成状态触发，不会干扰用户主动浏览列表。
-    LaunchedEffect(conversationJobs.containsKey(current.id)) {
-        if (conversationJobs.containsKey(current.id)) {
+    val currentConversationIsGenerating = current.id in conversationJobs
+    LaunchedEffect(current.id, currentConversationIsGenerating, current.messageNodes.isEmpty()) {
+        if (currentConversationIsGenerating || current.messageNodes.isEmpty()) {
             conversationListState.scrollToItem(0)
         }
     }
-
     // 昵称编辑状态
     val nicknameEditState = useEditState<String> { newNickname ->
         vm.updateSettings(

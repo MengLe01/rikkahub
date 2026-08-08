@@ -56,13 +56,21 @@ import kotlin.uuid.Uuid
  * Represents different types of items in the conversation list
  */
 sealed class ConversationListItem {
+    abstract val sourceKey: String
+
     data class DateHeader(
+        override val sourceKey: String,
         val key: String,
-        val label: String
+        val label: String,
     ) : ConversationListItem()
-    data object PinnedHeader : ConversationListItem()
+
+    data class PinnedHeader(
+        override val sourceKey: String,
+    ) : ConversationListItem()
+
     data class Item(
-        val conversation: Conversation
+        override val sourceKey: String,
+        val conversation: Conversation,
     ) : ConversationListItem()
 }
 
@@ -107,21 +115,21 @@ fun ColumnScope.ConversationList(
         for (index in 0 until conversations.itemCount) {
             when (val snapshotItem = conversations.peek(index)) {
                 is ConversationListItem.DateHeader -> {
-                    stickyHeader(key = "date_${snapshotItem.key}") {
+                    stickyHeader(key = "${snapshotItem.sourceKey}_date_${snapshotItem.key}") {
                         val header = conversations[index] as? ConversationListItem.DateHeader ?: snapshotItem
                         DateHeaderItem(label = header.label)
                     }
                 }
 
                 is ConversationListItem.PinnedHeader -> {
-                    stickyHeader(key = "pinned_header") {
+                    stickyHeader(key = "${snapshotItem.sourceKey}_pinned_header") {
                         conversations[index]
                         PinnedHeader()
                     }
                 }
 
                 is ConversationListItem.Item -> {
-                    item(key = snapshotItem.conversation.id.toString()) {
+                    item(key = "${snapshotItem.sourceKey}_${snapshotItem.conversation.id}") {
                         val conversationItem =
                             conversations[index] as? ConversationListItem.Item ?: return@item
                         ConversationItem(

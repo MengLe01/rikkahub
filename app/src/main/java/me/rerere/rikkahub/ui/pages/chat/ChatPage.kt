@@ -141,8 +141,8 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val isBigScreen =
         windowSize.width > windowSize.height && windowSize.width >= 1100.dp
 
-    // 进入大屏（永久抽屉）模式时重置抽屉状态为关闭，
-    // 避免从横屏旋转回竖屏后，模态抽屉残留为打开状态且无法关闭（#1304）
+    // 鏉╂稑鍙嗘径褍鐫嗛敍鍫熸娑斿懏濞婄仦澶涚礆濡€崇础閺冨爼鍣哥純顔藉▕鐏炲濮搁幀浣疯礋閸忔娊妫撮敍?
+    // 闁灝鍘ゆ禒搴⒚仦蹇旀鏉烆剙娲栫粩鏍х潌閸氬函绱濆Ο鈩冣偓浣瑰▕鐏炲鐣悾娆庤礋閹垫挸绱戦悩鑸碘偓浣风瑬閺冪姵纭堕崗鎶芥４閿?1304閿?
     LaunchedEffect(isBigScreen) {
         if (isBigScreen && drawerState.isVisible) {
             drawerState.close()
@@ -151,7 +151,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
 
     val inputState = vm.inputState
 
-    // 初始化输入状态（处理传入的 files 和 text 参数）
+    // 閸掓繂顫愰崠鏍翻閸忋儳濮搁幀渚婄礄婢跺嫮鎮婃导鐘插弳閻?files 閸?text 閸欏倹鏆熼敍?
     LaunchedEffect(files, text) {
         if (files.isNotEmpty()) {
             val localFiles = filesManager.createChatFilesByContents(files)
@@ -235,7 +235,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                         navController = navController,
                         current = conversation,
                         vm = vm,
-                        settings = setting
+                        settings = setting,
                     )
                 }
             ) {
@@ -354,7 +354,7 @@ private fun ChatPageContent(
                     },
                     onSendClick = {
                         if (currentChatModel == null) {
-                            toaster.show("请先选择模型", type = ToastType.Error)
+                            toaster.show("鐠囧嘲鍘涢柅澶嬪濡€崇€?, type = ToastType.Error)
                             return@ChatInput
                         }
                         if (inputState.isEditing()) {
@@ -594,7 +594,7 @@ private fun ChatFilesPickerSheet(
                     val tempFile = File(context.appTempFolder, "pick_temp_${System.currentTimeMillis()}.jpg")
                     runCatching {
                         val source = selectedUris.first()
-                        // HEIF/HEIC（尤其 HDR HEIF）交给 UCrop 前先解码转为 JPEG，规避裁剪解码失败
+                        // HEIF/HEIC閿涘牆鎸ㄩ崗?HDR HEIF閿涘姘︾紒?UCrop 閸撳秴鍘涚憴锝囩垳鏉烆兛璐?JPEG閿涘矁顫夐柆鑳梿閸擃亣袙閻礁銇戠拹?
                         val converted = ImageUtils.isHeifImage(context, source) &&
                             ImageUtils.convertHeifToJpeg(context, source, tempFile)
                         if (!converted) {
