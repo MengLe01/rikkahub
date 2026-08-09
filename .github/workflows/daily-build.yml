@@ -15,6 +15,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Use official Gradle distribution
+        run: |
+          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-9.5.0-bin.zip#' gradle/wrapper/gradle-wrapper.properties
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
