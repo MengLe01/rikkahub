@@ -1,4 +1,6 @@
 pluginManagement {
+    includeBuild("build-logic")
+
     repositories {
         maven("https://maven.aliyun.com/repository/google") {
             content {

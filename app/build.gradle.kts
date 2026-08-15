@@ -22,8 +22,8 @@ android {
         applicationId = "me.rerere.airhub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 172
-        versionName = "2.4.5"
+        versionCode = 176
+        versionName = "2.4.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -77,12 +77,9 @@ android {
                     "Release signing is not configured. Set signing values in local.properties or ANDROID_KEYSTORE_* environment variables."
                 }
             }
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            optimization {
+                enable = true
+            }
             buildConfigField("String", "VERSION_NAME", "\"${android.defaultConfig.versionName}\"")
             buildConfigField("String", "VERSION_CODE", "\"${android.defaultConfig.versionCode}\"")
         }
@@ -189,7 +186,7 @@ dependencies {
     // Haze (background blur)
     implementation(libs.haze)
     implementation(libs.haze.blur)
-    implementation(libs.haze.blur.materials)
+    implementation(libs.haze.blur.material3)
 
     // koin
     implementation(platform(libs.koin.bom))
