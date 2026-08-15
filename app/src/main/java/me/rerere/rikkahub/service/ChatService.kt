@@ -277,23 +277,33 @@ class ChatService(
 
     // ---- 初始化对话 ----
 
-    suspend fun initializeConversation(conversationId: Uuid) {
-        getOrCreateSession(conversationId) // 确保 session 存在
-        val conversation = conversationRepo.getConversationById(conversationId)
-        if (conversation != null) {
-            updateConversation(conversationId, conversation)
-            settingsStore.updateAssistant(conversation.assistantId)
-        } else {
-            // 新建对话, 并添加预设消息
-            val currentSettings = settingsStore.settingsFlowRaw.first()
-            val assistant = currentSettings.getCurrentAssistant()
-            val newConversation = Conversation.ofId(
-                id = conversationId,
-                assistantId = assistant.id,
-                newConversation = true
-            ).updateCurrentMessages(assistant.presetMessages)
-            updateConversation(conversationId, newConversation)
+    suspend fun prepareConversation(conversationId: Uuid) {
+        val session = getOrCreateSession(conversationId)
+        session.ensureInitialized {
+            val conversation = conversationRepo.getConversationById(conversationId)
+            if (conversation != null) {
+                updateConversation(conversationId, conversation)
+            } else {
+                // 新建对话, 并添加预设消息
+                val currentSettings = settingsStore.settingsFlowRaw.first()
+                val assistant = currentSettings.getCurrentAssistant()
+                val newConversation = Conversation.ofId(
+                    id = conversationId,
+                    assistantId = assistant.id,
+                    newConversation = true
+                ).updateCurrentMessages(assistant.presetMessages)
+                updateConversation(conversationId, newConversation)
+            }
         }
+    }
+
+    suspend fun initializeConversation(
+        conversationId: Uuid,
+        onConversationReady: () -> Unit = {},
+    ) {
+        prepareConversation(conversationId)
+        onConversationReady()
+        settingsStore.updateAssistant(getOrCreateSession(conversationId).state.value.assistantId)
     }
 
     // ---- 发送消息 ----

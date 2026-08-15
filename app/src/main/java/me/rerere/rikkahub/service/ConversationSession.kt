@@ -2,7 +2,9 @@ package me.rerere.rikkahub.service
 
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,10 +36,48 @@ class ConversationSession(
     private val _generationJob = MutableStateFlow<Job?>(null)
     val generationJob: StateFlow<Job?> = _generationJob.asStateFlow()
     val isGenerating: Boolean get() = _generationJob.value?.isActive == true
-    val isInUse: Boolean get() = refCount.get() > 0 || isGenerating
+    val isInUse: Boolean get() = refCount.get() > 0 || isGenerating || isInitializing
 
     // 空闲检查任务
     private var idleCheckJob: Job? = null
+
+    // 同一会话的初始化只执行一次，预加载与页面初始化共享同一个任务
+    private val initializationLock = Any()
+
+    private var initialized = false
+    private var initializationJob: Deferred<Unit>? = null
+    private val isInitializing: Boolean
+        get() = synchronized(initializationLock) { initializationJob?.isActive == true }
+
+    suspend fun ensureInitialized(block: suspend () -> Unit) {
+        acquire()
+        try {
+            val job = synchronized(initializationLock) {
+                if (initialized) {
+                    null
+                } else {
+                    initializationJob ?: scope.async { block() }.also { job ->
+                        initializationJob = job
+                        job.invokeOnCompletion { cause ->
+                            val shouldCheckIdle = synchronized(initializationLock) {
+                                if (initializationJob === job) {
+                                    initialized = cause == null
+                                    initializationJob = null
+                                    refCount.get() <= 0
+                                } else {
+                                    false
+                                }
+                            }
+                            if (shouldCheckIdle) scheduleIdleCheck()
+                        }
+                    }
+                }
+            }
+            job?.await()
+        } finally {
+            release()
+        }
+    }
 
     fun acquire(): Int = refCount.incrementAndGet().also {
         cancelIdleCheck()
@@ -86,7 +126,7 @@ class ConversationSession(
         idleCheckJob?.cancel()
         idleCheckJob = scope.launch {
             delay(IDLE_TIMEOUT_MS)
-            if (refCount.get() <= 0 && !isGenerating) {
+            if (!isInUse) {
                 onIdle(id)
             }
         }
@@ -98,6 +138,11 @@ class ConversationSession(
     }
 
     fun cleanup() {
+        synchronized(initializationLock) {
+            initializationJob?.cancel()
+            initializationJob = null
+            initialized = false
+        }
         _generationJob.value?.cancel()
         _generationJob.value = null
         idleCheckJob?.cancel()

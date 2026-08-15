@@ -59,7 +59,9 @@ class ChatVM(
 ) : ViewModel() {
     private val _conversationId: Uuid = Uuid.parse(id)
     val conversation: StateFlow<Conversation> = chatService.getConversationFlow(_conversationId)
-    var chatListInitialized by mutableStateOf(false) // 聊天列表是否已经滚动到底部
+    var chatListInitialized by mutableStateOf(false)
+    var conversationInitialized by mutableStateOf(false)
+        private set
 
     // 聊天输入状态 - 保存在 ViewModel 中避免 TransactionTooLargeException
     val inputState = ChatInputState()
@@ -84,11 +86,21 @@ class ChatVM(
 
         // 初始化对话
         viewModelScope.launch {
-            chatService.initializeConversation(_conversationId)
+            try {
+                chatService.initializeConversation(_conversationId) {
+                    conversationInitialized = true
+                }
+            } finally {
+                conversationInitialized = true
+            }
         }
 
         // 记住对话ID, 方便下次启动恢复
         context.writeStringPreference("lastConversationId", _conversationId.toString())
+    }
+
+    suspend fun prepareConversation(conversationId: Uuid) {
+        chatService.prepareConversation(conversationId)
     }
 
     override fun onCleared() {

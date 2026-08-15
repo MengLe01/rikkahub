@@ -68,8 +68,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -92,6 +94,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.rerere.ai.ui.UIMessage
 import me.rerere.rikkahub.R
@@ -111,8 +114,7 @@ import me.rerere.rikkahub.utils.plus
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 
-private const val TAG = "ChatList"
-private const val LoadingIndicatorKey = "LoadingIndicator"
+private const val TrailingContentKey = "TrailingContentKey"
 private const val ScrollBottomKey = "ScrollBottomKey"
 private val NearConversationEndThreshold = 96.dp
 
@@ -121,6 +123,10 @@ fun ChatList(
     innerPadding: PaddingValues,
     conversation: Conversation,
     state: LazyListState,
+    conversationInitialized: Boolean,
+    initialPositioned: Boolean,
+    initialNodeId: Uuid?,
+    onInitialPositioned: () -> Unit,
     isEditing: Boolean,
     onDismissInput: () -> Unit,
     loading: Boolean,
@@ -146,7 +152,56 @@ fun ChatList(
     onConversationSystemPromptChange: ((String?) -> Unit)? = null,
 ) {
     val currentOnDismissInput by rememberUpdatedState(onDismissInput)
+    val currentOnInitialPositioned by rememberUpdatedState(onInitialPositioned)
     val isListDragged by state.interactionSource.collectIsDraggedAsState()
+    var userScrollEnabled by remember(conversation.id) {
+        mutableStateOf(initialPositioned)
+    }
+
+    LaunchedEffect(
+        conversation.id,
+        conversationInitialized,
+        initialPositioned,
+        initialNodeId,
+        previewMode,
+    ) {
+        if (initialPositioned) {
+            userScrollEnabled = true
+            return@LaunchedEffect
+        }
+        if (!conversationInitialized || previewMode) {
+            userScrollEnabled = false
+            return@LaunchedEffect
+        }
+
+        userScrollEnabled = false
+        val minimumItemCount = conversation.messageNodes.size + 1
+        snapshotFlow {
+            state.layoutInfo.totalItemsCount to state.layoutInfo.viewportSize.height
+        }.first { (itemCount, viewportHeight) ->
+            itemCount >= minimumItemCount && viewportHeight > 0
+        }
+
+        val nodeIndex = initialNodeId?.let { targetId ->
+            conversation.messageNodes.indexOfFirst { it.id == targetId }
+        } ?: -1
+
+        if (nodeIndex >= 0) {
+            state.scrollToItem(nodeIndex)
+            withFrameNanos { }
+        } else {
+            repeat(2) {
+                val lastItemIndex = state.layoutInfo.totalItemsCount - 1
+                if (lastItemIndex >= 0) {
+                    state.scrollToItem(lastItemIndex)
+                }
+                withFrameNanos { }
+            }
+        }
+
+        userScrollEnabled = true
+        currentOnInitialPositioned()
+    }
 
     LaunchedEffect(isListDragged) {
         if (isListDragged) {
@@ -200,6 +255,9 @@ fun ChatList(
                 state = state,
                 isEditing = isEditing,
                 isListDragged = isListDragged,
+                initialPositioned = initialPositioned,
+                initialNodeId = initialNodeId,
+                userScrollEnabled = userScrollEnabled,
                 loading = loading,
                 processingStatus = processingStatus,
                 settings = settings,
@@ -232,6 +290,9 @@ private fun ChatListNormal(
     state: LazyListState,
     isEditing: Boolean,
     isListDragged: Boolean,
+    initialPositioned: Boolean,
+    initialNodeId: Uuid?,
+    userScrollEnabled: Boolean,
     loading: Boolean,
     processingStatus: String? = null,
     settings: Settings,
@@ -256,7 +317,6 @@ private fun ChatListNormal(
     val scope = rememberCoroutineScope()
     val loadingState by rememberUpdatedState(loading)
     var isRecentScroll by remember { mutableStateOf(false) }
-    val conversationUpdated by rememberUpdatedState(conversation)
     val density = LocalDensity.current
     val activity = LocalContext.current as? me.rerere.rikkahub.RouteActivity
 
@@ -295,6 +355,24 @@ private fun ChatListNormal(
             state.layoutInfo.visibleItemsInfo.isNearConversationEnd()
         }
     }
+    var followConversationEnd by remember(conversation.id) {
+        mutableStateOf(initialNodeId == null)
+    }
+    var userScrollInProgress by remember(conversation.id) { mutableStateOf(false) }
+
+    LaunchedEffect(state, conversation.id) {
+        snapshotFlow {
+            Triple(isListDragged, state.isScrollInProgress, isNearConversationEnd)
+        }.collect { (isDragged, isScrolling, isNearEnd) ->
+            if (isDragged) {
+                userScrollInProgress = true
+                followConversationEnd = false
+            } else if (userScrollInProgress && !isScrolling) {
+                followConversationEnd = isNearEnd
+                userScrollInProgress = false
+            }
+        }
+    }
 
     // 聊天选择
     val selectedItems = remember { mutableStateListOf<Uuid>() }
@@ -304,7 +382,7 @@ private fun ChatListNormal(
     // 自动跟随键盘滚动
     ImeLazyListAutoScroller(
         lazyListState = state,
-        enabled = !isEditing && !isListDragged,
+        enabled = initialPositioned && !isEditing && !isListDragged && followConversationEnd,
         isNearEnd = isNearConversationEnd,
     )
 
@@ -333,14 +411,16 @@ private fun ChatListNormal(
             .fillMaxSize(),
     ) {
         // 自动滚动到底部
-        if (settings.displaySetting.enableAutoScroll) {
+        if (initialPositioned && settings.displaySetting.enableAutoScroll) {
             LaunchedEffect(state) {
                 snapshotFlow { state.layoutInfo.visibleItemsInfo }.collect { visibleItemsInfo ->
                     // println("is bottom = ${visibleItemsInfo.isAtBottom()}, scroll = ${state.isScrollInProgress}, can_scroll = ${state.canScrollForward}, loading = $loading")
-                    if (!state.isScrollInProgress && loadingState) {
+                    if (!state.isScrollInProgress && !isListDragged && loadingState && followConversationEnd) {
                         if (visibleItemsInfo.isNearConversationEnd()) {
-                            state.requestScrollToItem(conversationUpdated.messageNodes.lastIndex + 10)
-                            // Log.i(TAG, "ChatList: scroll to ${conversationUpdated.messageNodes.lastIndex}")
+                            val lastItemIndex = state.layoutInfo.totalItemsCount - 1
+                            if (lastItemIndex >= 0) {
+                                state.requestScrollToItem(lastItemIndex)
+                            }
                         }
                     }
                 }
@@ -362,6 +442,7 @@ private fun ChatListNormal(
         ChatFontProvider(displaySetting = settings.displaySetting) {
             LazyColumn(
                 state = state,
+                userScrollEnabled = userScrollEnabled,
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     top = 16.dp,
@@ -372,6 +453,7 @@ private fun ChatListNormal(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier
                     .fillMaxSize()
+                    .alpha(if (userScrollEnabled) 1f else 0f)
                     .hazeSource(state = hazeState)
                     .padding(top = innerPadding.calculateTopPadding()),
             ) {
@@ -432,33 +514,33 @@ private fun ChatListNormal(
                 }
             }
 
-            if (!loading && assistant?.allowConversationSystemPrompt == true && onConversationSystemPromptChange != null) {
-                item(key = "ConversationSystemPrompt") {
-                    ConversationSystemPromptButton(
-                        customSystemPrompt = conversation.customSystemPrompt,
-                        onSystemPromptChange = onConversationSystemPromptChange,
-                    )
-                }
-            }
-
-            if (loading) {
-                item(LoadingIndicatorKey) {
-                    Row(
-                        modifier = Modifier.padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        RabbitLoadingIndicator(
-                            modifier = Modifier.size(28.dp)
+            item(key = TrailingContentKey) {
+                when {
+                    !loading && assistant?.allowConversationSystemPrompt == true && onConversationSystemPromptChange != null -> {
+                        ConversationSystemPromptButton(
+                            customSystemPrompt = conversation.customSystemPrompt,
+                            onSystemPromptChange = onConversationSystemPromptChange,
                         )
-                        AnimatedVisibility(
-                            visible = processingStatus != null,
+                    }
+
+                    loading -> {
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Text(
-                                text = processingStatus ?: "",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            RabbitLoadingIndicator(
+                                modifier = Modifier.size(28.dp)
                             )
+                            AnimatedVisibility(
+                                visible = processingStatus != null,
+                            ) {
+                                Text(
+                                    text = processingStatus ?: "",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }

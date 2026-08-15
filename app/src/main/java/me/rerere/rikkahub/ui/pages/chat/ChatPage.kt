@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
@@ -64,6 +63,7 @@ import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
+import me.rerere.rikkahub.data.datastore.getAssistantById
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
 import me.rerere.rikkahub.data.datastore.getCurrentChatModel
 import me.rerere.rikkahub.data.files.FilesManager
@@ -93,6 +93,7 @@ import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import java.io.File
 import kotlin.uuid.Uuid
+
 
 @Composable
 fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
@@ -141,8 +142,8 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val isBigScreen =
         windowSize.width > windowSize.height && windowSize.width >= 1100.dp
 
-    // 鏉╂稑鍙嗘径褍鐫嗛敍鍫熸娑斿懏濞婄仦澶涚礆濡€崇础閺冨爼鍣哥純顔藉▕鐏炲濮搁幀浣疯礋閸忔娊妫撮敍?
-    // 闁灝鍘ゆ禒搴⒚仦蹇旀鏉烆剙娲栫粩鏍х潌閸氬函绱濆Ο鈩冣偓浣瑰▕鐏炲鐣悾娆庤礋閹垫挸绱戦悩鑸碘偓浣风瑬閺冪姵纭堕崗鎶芥４閿?1304閿?
+    // 进入大屏（永久抽屉）模式时重置抽屉状态为关闭，
+    // 避免从横屏旋转回竖屏后，模态抽屉残留为打开状态且无法关闭（#1304）
     LaunchedEffect(isBigScreen) {
         if (isBigScreen && drawerState.isVisible) {
             drawerState.close()
@@ -151,7 +152,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
 
     val inputState = vm.inputState
 
-    // 閸掓繂顫愰崠鏍翻閸忋儳濮搁幀渚婄礄婢跺嫮鎮婃导鐘插弳閻?files 閸?text 閸欏倹鏆熼敍?
+    // 初始化输入状态（处理传入的 files 和 text 参数）
     LaunchedEffect(files, text) {
         if (files.isNotEmpty()) {
             val localFiles = filesManager.createChatFilesByContents(files)
@@ -179,21 +180,6 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
         }
     }
 
-    val chatListState = rememberLazyListState()
-    LaunchedEffect(nodeId, conversation.messageNodes.size) {
-        if (!vm.chatListInitialized && conversation.messageNodes.isNotEmpty()) {
-            if (nodeId != null) {
-                val index = conversation.messageNodes.indexOfFirst { it.id == nodeId }
-                if (index >= 0) {
-                    chatListState.scrollToItem(index)
-                }
-            } else {
-                chatListState.requestScrollToItem(conversation.currentMessages.size + 5)
-            }
-            vm.chatListInitialized = true
-        }
-    }
-
     when {
         isBigScreen -> {
             PermanentNavigationDrawer(
@@ -215,7 +201,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     drawerState = drawerState,
                     navController = navController,
                     vm = vm,
-                    chatListState = chatListState,
+                    initialNodeId = nodeId,
                     enableWebSearch = enableWebSearch,
                     currentChatModel = currentChatModel,
                     bigScreen = true,
@@ -248,7 +234,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     drawerState = drawerState,
                     navController = navController,
                     vm = vm,
-                    chatListState = chatListState,
+                    initialNodeId = nodeId,
                     enableWebSearch = enableWebSearch,
                     currentChatModel = currentChatModel,
                     bigScreen = false,
@@ -273,7 +259,7 @@ private fun ChatPageContent(
     drawerState: ChatDrawerState,
     navController: Navigator,
     vm: ChatVM,
-    chatListState: LazyListState,
+    initialNodeId: Uuid?,
     enableWebSearch: Boolean,
     currentChatModel: Model?,
     errors: List<ChatError>,
@@ -286,8 +272,10 @@ private fun ChatPageContent(
     val workspaceRepository: WorkspaceRepository = koinInject()
     var previewMode by rememberSaveable { mutableStateOf(false) }
     val hazeState = rememberHazeState()
-    val assistant = setting.getCurrentAssistant()
+    val assistant = setting.getAssistantById(conversation.assistantId) ?: setting.getCurrentAssistant()
     var showFilesSheet by remember { mutableStateOf(false) }
+
+    val chatListState = rememberLazyListState()
 
     val completionProviders = remember(assistant.workspaceId, conversation.workspaceCwd, workspaceRepository) {
         assistant.workspaceId?.let { workspaceId ->
@@ -354,7 +342,7 @@ private fun ChatPageContent(
                     },
                     onSendClick = {
                         if (currentChatModel == null) {
-                            toaster.show("鐠囧嘲鍘涢柅澶嬪濡€崇€?, type = ToastType.Error)
+                            toaster.show("请先选择模型", type = ToastType.Error)
                             return@ChatInput
                         }
                         if (inputState.isEditing()) {
@@ -418,6 +406,10 @@ private fun ChatPageContent(
                 innerPadding = innerPadding,
                 conversation = conversation,
                 state = chatListState,
+                conversationInitialized = vm.conversationInitialized,
+                initialPositioned = vm.chatListInitialized,
+                initialNodeId = initialNodeId,
+                onInitialPositioned = { vm.chatListInitialized = true },
                 isEditing = inputState.isEditing(),
                 loading = loadingJob != null,
                 processingStatus = processingStatus,
@@ -594,7 +586,7 @@ private fun ChatFilesPickerSheet(
                     val tempFile = File(context.appTempFolder, "pick_temp_${System.currentTimeMillis()}.jpg")
                     runCatching {
                         val source = selectedUris.first()
-                        // HEIF/HEIC閿涘牆鎸ㄩ崗?HDR HEIF閿涘姘︾紒?UCrop 閸撳秴鍘涚憴锝囩垳鏉烆兛璐?JPEG閿涘矁顫夐柆鑳梿閸擃亣袙閻礁銇戠拹?
+                        // HEIF/HEIC（尤其 HDR HEIF）交给 UCrop 前先解码转为 JPEG，规避裁剪解码失败
                         val converted = ImageUtils.isHeifImage(context, source) &&
                             ImageUtils.convertHeifToJpeg(context, source, tempFile)
                         if (!converted) {
