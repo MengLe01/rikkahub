@@ -132,13 +132,25 @@ fun ChatDrawerContent(
         initialValue = emptyMap(),
     )
 
-    // 当前对话开始生成（有新内容产生）时，将侧边栏滚动到顶部，确保该对话可见。
-    // 与点击切换对话时的滚动区分：此处由生成状态触发，不会干扰用户主动浏览列表。
-    val currentConversationIsGenerating = current.id in conversationJobs
-    LaunchedEffect(current.id, currentConversationIsGenerating, current.messageNodes.isEmpty()) {
-        if (currentConversationIsGenerating || current.messageNodes.isEmpty()) {
+    // 新建对话时回到列表顶部；切换到已有对话时不改变用户当前的滚动位置。
+    LaunchedEffect(current.id) {
+        if (!repo.existsConversationById(current.id)) {
             conversationListState.scrollToItem(0)
         }
+    }
+
+    // 仅在当前对话的生成任务从“未生成”变为“生成中”时回到顶部。
+    // 不监听 current.id 或 messageNodes.isEmpty()，避免切换对话和加载过程触发复位。
+    var previousGeneratingConversationIds by remember { mutableStateOf(emptySet<Uuid>()) }
+    LaunchedEffect(conversationJobs) {
+        val generatingConversationIds = conversationJobs.keys.toSet()
+        if (
+            current.id in generatingConversationIds &&
+            current.id !in previousGeneratingConversationIds
+        ) {
+            conversationListState.scrollToItem(0)
+        }
+        previousGeneratingConversationIds = generatingConversationIds
     }
     // 昵称编辑状态
     val nicknameEditState = useEditState<String> { newNickname ->
