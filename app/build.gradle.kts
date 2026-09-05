@@ -22,8 +22,8 @@ android {
         applicationId = "me.rerere.airhub"
         minSdk = 26
         targetSdk = 37
-        versionCode = 176
-        versionName = "2.4.9"
+        versionCode = 184
+        versionName = "2.4.17"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -228,6 +228,9 @@ dependencies {
     // serialization
     implementation(libs.kotlinx.serialization.json)
 
+    // YAML front matter
+    implementation(libs.snakeyaml)
+
     // zxing
     implementation(libs.zxing.core)
 
@@ -289,9 +292,11 @@ dependencies {
     implementation(project(":highlight"))
     implementation(project(":search"))
     implementation(project(":speech"))
+    implementation(project(":videogen"))
     implementation(project(":common"))
     implementation(project(":material3"))
     implementation(project(":workspace"))
+    implementation(project(":oauth"))
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
     implementation(kotlin("reflect"))
 
