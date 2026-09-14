@@ -97,6 +97,7 @@ class ModelListState internal constructor(
     modelId: Uuid?,
     providers: List<ProviderSetting>,
     type: ModelType,
+    modelFilter: (Model) -> Boolean = { true },
 ) {
     var modelId by mutableStateOf(modelId)
         private set
@@ -107,6 +108,9 @@ class ModelListState internal constructor(
     var type by mutableStateOf(type)
         private set
 
+    var modelFilter = modelFilter
+        private set
+
     var visible by mutableStateOf(false)
         private set
 
@@ -115,7 +119,9 @@ class ModelListState internal constructor(
 
     val filteredProviders: List<ProviderSetting>
         get() = providers.fastFilter { provider ->
-            provider.enabled && provider.models.fastAny { model -> model.type == type && !model.isHidden }
+            provider.enabled && provider.models.fastAny { model ->
+                model.type == type && !model.isHidden && modelFilter(model)
+            }
         }
 
     fun open() {
@@ -130,10 +136,12 @@ class ModelListState internal constructor(
         modelId: Uuid?,
         providers: List<ProviderSetting>,
         type: ModelType,
+        modelFilter: (Model) -> Boolean,
     ) {
         this.modelId = modelId
         this.providers = providers
         this.type = type
+        this.modelFilter = modelFilter
     }
 }
 
@@ -142,18 +150,21 @@ fun rememberModelListState(
     modelId: Uuid?,
     providers: List<ProviderSetting>,
     type: ModelType,
+    modelFilter: (Model) -> Boolean = { true },
 ): ModelListState {
     return remember {
         ModelListState(
             modelId = modelId,
             providers = providers,
             type = type,
+            modelFilter = modelFilter,
         )
     }.also {
         it.update(
             modelId = modelId,
             providers = providers,
             type = type,
+            modelFilter = modelFilter,
         )
     }
 }
@@ -294,6 +305,7 @@ fun ModelListSheet(
                 currentModel = state.modelId,
                 providers = state.filteredProviders,
                 modelType = state.type,
+                modelFilter = state.modelFilter,
                 onSelect = {
                     onSelect(it)
                     dismiss()
@@ -311,6 +323,7 @@ private fun ColumnScope.ModelList(
     currentModel: Uuid? = null,
     providers: List<ProviderSetting>,
     modelType: ModelType,
+    modelFilter: (Model) -> Boolean,
     onSelect: (Model) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -321,23 +334,28 @@ private fun ColumnScope.ModelList(
 
     val favoriteModels = settings.value.favoriteModels.mapNotNull { modelId ->
         val model = settings.value.providers.findModelById(modelId) ?: return@mapNotNull null
-        if (model.type != modelType || model.isHidden) return@mapNotNull null
+        if (model.type != modelType || model.isHidden || !modelFilter(model)) {
+            return@mapNotNull null
+        }
         val provider = model.findProvider(providers = settings.value.providers, checkOverwrite = false) ?: return@mapNotNull null
         model to provider
     }
 
     var searchKeywords by remember { mutableStateOf("") }
 
-    val typeFilteredModelsByProvider = remember(providers, modelType) {
+    val typeFilteredModelsByProvider = remember(providers, modelType, modelFilter) {
         providers.associate { provider ->
-            provider.id to provider.models.fastFilter { it.type == modelType && !it.isHidden }
+            provider.id to provider.models.fastFilter {
+                it.type == modelType && !it.isHidden && modelFilter(it)
+            }
         }
     }
 
-    val searchFilteredModelsByProvider = remember(providers, modelType, searchKeywords) {
+    val searchFilteredModelsByProvider = remember(providers, modelType, modelFilter, searchKeywords) {
         providers.associate { provider ->
             provider.id to provider.models.fastFilter {
-                it.type == modelType && !it.isHidden && it.displayName.contains(searchKeywords, true)
+                it.type == modelType && !it.isHidden && modelFilter(it) &&
+                    it.displayName.contains(searchKeywords, true)
             }
         }
     }
