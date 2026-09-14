@@ -323,7 +323,10 @@ class ChatService(
 
     // ---- 初始化对话 ----
 
-    suspend fun prepareConversation(conversationId: Uuid) {
+    suspend fun prepareConversation(
+        conversationId: Uuid,
+        initialFolderId: Uuid? = null,
+    ) {
         val session = getOrCreateSession(conversationId)
         session.ensureInitialized {
             val conversation = conversationRepo.getConversationById(conversationId)
@@ -337,7 +340,9 @@ class ChatService(
                     id = conversationId,
                     assistantId = assistant.id,
                     newConversation = true
-                ).updateCurrentMessages(assistant.presetMessages)
+                )
+                    .copy(folderId = initialFolderId)
+                    .updateCurrentMessages(assistant.presetMessages)
                 updateConversation(conversationId, newConversation)
             }
         }
@@ -345,9 +350,10 @@ class ChatService(
 
     suspend fun initializeConversation(
         conversationId: Uuid,
+        initialFolderId: Uuid? = null,
         onConversationReady: () -> Unit = {},
     ) {
-        prepareConversation(conversationId)
+        prepareConversation(conversationId, initialFolderId)
         onConversationReady()
         settingsStore.updateAssistant(getOrCreateSession(conversationId).state.value.assistantId)
     }

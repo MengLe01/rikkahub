@@ -45,6 +45,7 @@ private const val TAG = "ChatVM"
 
 class ChatVM(
     id: String,
+    private val initialFolderId: Uuid? = null,
     private val context: Application,
     private val settingsStore: SettingsStore,
     private val conversationRepo: ConversationRepository,
@@ -83,7 +84,10 @@ class ChatVM(
         // 初始化对话
         viewModelScope.launch {
             try {
-                chatService.initializeConversation(_conversationId) {
+                chatService.initializeConversation(
+                    conversationId = _conversationId,
+                    initialFolderId = initialFolderId,
+                ) {
                     conversationInitialized = true
                 }
             } finally {
