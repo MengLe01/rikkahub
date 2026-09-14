@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import me.rerere.ai.ui.UIMessagePart
+import me.rerere.rikkahub.utils.normalizeLineEndings
 import kotlin.uuid.Uuid
 
 class ChatInputState {
@@ -27,11 +28,11 @@ class ChatInputState {
     fun isEditing() = editingMessage != null
 
     fun setMessageText(text: String) {
-        textContent.setTextAndPlaceCursorAtEnd(text)
+        textContent.setTextAndPlaceCursorAtEnd(text.normalizeLineEndings())
     }
 
     fun appendText(content: String) {
-        textContent.setTextAndPlaceCursorAtEnd(textContent.text.toString() + content)
+        textContent.setTextAndPlaceCursorAtEnd(textContent.text.toString() + content.normalizeLineEndings())
     }
 
     fun setContents(contents: List<UIMessagePart>) {
@@ -41,7 +42,7 @@ class ChatInputState {
         } else {
             ""
         }
-        textContent.setTextAndPlaceCursorAtEnd(text)
+        textContent.setTextAndPlaceCursorAtEnd(text.normalizeLineEndings())
         messageContent = contents.filter { it !is UIMessagePart.Text }
         editingParts = contents
         editingAttachmentUrls = contents.mapNotNull { it.attachmentUrlOrNull() }.toSet()

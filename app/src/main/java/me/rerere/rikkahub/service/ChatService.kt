@@ -87,6 +87,7 @@ import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.web.BadRequestException
 import me.rerere.rikkahub.web.NotFoundException
 import me.rerere.rikkahub.utils.applyPlaceholders
+import me.rerere.rikkahub.utils.normalizeLineEndings
 import me.rerere.workspace.WorkspaceShellStatus
 import java.time.Instant
 import java.util.Locale
@@ -414,7 +415,7 @@ class ChatService(
                             assistant = assistant,
                             scope = AssistantAffectScope.USER,
                             visual = false
-                        )
+                        ).normalizeLineEndings()
                     )
                 }
 

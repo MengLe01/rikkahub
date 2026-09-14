@@ -35,7 +35,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.byValue
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
@@ -116,8 +118,13 @@ import me.rerere.rikkahub.ui.context.LocalSettings
 import me.rerere.rikkahub.ui.context.LocalToaster
 import me.rerere.rikkahub.ui.hooks.ChatInputState
 import me.rerere.rikkahub.utils.SoundEffectPlayer
+import me.rerere.rikkahub.utils.normalizeLineEndings
 import org.koin.compose.koinInject
 import kotlin.time.Duration.Companion.seconds
+
+private val LineEndingInputTransformation = InputTransformation.byValue { _, proposed ->
+    if ('\r' in proposed) proposed.toString().normalizeLineEndings() else proposed
+}
 
 @Composable
 fun ChatInput(
@@ -561,6 +568,7 @@ private fun TextInputRow(
 
         TextField(
             state = state.textContent,
+            inputTransformation = LineEndingInputTransformation,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("chat_input")
@@ -716,9 +724,10 @@ private fun ChatInputState.applyCompletion(
     val textLength = textContent.text.length
     val start = replacementRange.min.coerceIn(0, textLength)
     val end = replacementRange.max.coerceIn(start, textLength)
+    val insertText = item.insertText.normalizeLineEndings()
     textContent.edit {
-        replace(start, end, item.insertText)
-        selection = TextRange(start + item.insertText.length)
+        replace(start, end, insertText)
+        selection = TextRange(start + insertText.length)
     }
 }
 
@@ -812,6 +821,7 @@ private fun FullScreenEditor(
                     }
                     TextField(
                         state = state.textContent,
+                        inputTransformation = LineEndingInputTransformation,
                         modifier = Modifier
                             .padding(bottom = 2.dp)
                             .fillMaxSize(),

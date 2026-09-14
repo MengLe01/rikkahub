@@ -159,3 +159,5 @@ fun String.removeBracketedContent(): String? {
  * whitespace, Markdown markers, and code characters, counts as one.
  */
 fun String.characterCount(): Int = codePointCount(0, length)
+
+fun String.normalizeLineEndings(): String = replace("\r", "")
