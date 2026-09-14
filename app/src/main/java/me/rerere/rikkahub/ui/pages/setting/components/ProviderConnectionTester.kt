@@ -65,7 +65,7 @@ fun ProviderConnectionTester(
 
     if (showTestDialog) {
         var model by remember(internalProvider) {
-            mutableStateOf(internalProvider.models.firstOrNull { it.type == ModelType.CHAT })
+            mutableStateOf(internalProvider.models.firstOrNull { it.type == ModelType.CHAT && !it.isHidden })
         }
         var nonStreamingState: UiState<String> by remember { mutableStateOf(UiState.Idle) }
         var streamingState: UiState<String> by remember { mutableStateOf(UiState.Idle) }
